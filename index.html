@@ -1,0 +1,314 @@
+import React, { useState, useEffect } from 'react';
+import { Save, Trash2, Printer, Loader2, Heart, BookOpen, UserCheck, AlertTriangle, CheckCircle, XCircle, ListChecks, Lightbulb } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'lasalle-acompanamiento-2026';
+const apiKey = ""; 
+
+const AREAS = [
+  'Matemática', 'Lenguaje', 'Ciencias Naturales', 
+  'Sociales', 'Religión', 'Inglés', 'Computación',
+  'Artes Plásticas', 'Educación Física', 'Música'
+];
+
+const ESTADOS = {
+  'VERDE': { label: 'Regular', color: 'text-emerald-700', bg: 'bg-emerald-100', border: 'border-emerald-500', icon: <CheckCircle className="size-4" /> },
+  'AMARILLO': { label: 'Seguimiento', color: 'text-amber-700', bg: 'bg-amber-100', border: 'border-amber-500', icon: <AlertTriangle className="size-4" /> },
+  'ROJO': { label: 'Crítico', color: 'text-red-700', bg: 'bg-red-100', border: 'border-red-500', icon: <XCircle className="size-4" /> }
+};
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    estudiante: '',
+    area: 'Matemática',
+    alerta: 'VERDE',
+    observacion: ''
+  });
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInAnonymously(auth);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) { console.error(err); }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'artifacts', appId, 'users', user.uid, 'acompanamiento');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setLogs(data.sort((a, b) => (b.fecha?.toMillis() || 0) - (a.fecha?.toMillis() || 0)));
+    }, (err) => console.error(err));
+    return () => unsubscribe();
+  }, [user]);
+
+  const generatePlanAccion = async (data) => {
+    const systemPrompt = `Eres un Pedagogo Senior del Colegio La Salle. Tu tarea es analizar una observación académica y generar un plan de intervención estructurado. 
+    Debes responder ÚNICAMENTE en formato JSON con la siguiente estructura:
+    {
+      "analisis": "Breve diagnóstico pedagógico",
+      "soluciones": "Lista de 3 soluciones pedagógicas concretas",
+      "plan_pasos": "Plan de acción de 3 pasos (Paso 1, Paso 2, Paso 3)",
+      "mensaje_familia": "Compromiso requerido por parte de los padres"
+    }`;
+    
+    const userQuery = `Estudiante: ${data.estudiante}. Área: ${data.area}. Observación técnica: ${data.observacion}. Nivel de Alerta: ${data.alerta}`;
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: userQuery }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { responseMimeType: "application/json" }
+        })
+      });
+      const result = await response.json();
+      return JSON.parse(result.candidates?.[0]?.content?.parts?.[0]?.text);
+    } catch (err) {
+      return { 
+        analisis: "Requiere apoyo preventivo.", 
+        soluciones: "1. Refuerzo en aula, 2. Material adaptado, 3. Tutoría.", 
+        plan_pasos: "1. Diagnóstico inicial, 2. Aplicación de refuerzo, 3. Evaluación de progreso.", 
+        mensaje_familia: "Acompañar las tareas diarias." 
+      };
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user || !formData.estudiante || !formData.observacion) return;
+    setLoading(true);
+    const plan = await generatePlanAccion(formData);
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'acompanamiento'), {
+        ...formData,
+        planAccion: plan,
+        fecha: serverTimestamp()
+      });
+      setFormData({ ...formData, estudiante: '', observacion: '' });
+    } catch (err) { console.error(err); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-300 p-2 md:p-8 flex justify-center items-start overflow-auto font-sans">
+      <style>{`
+        @font-face {
+          font-family: 'Century Gothic';
+          src: local('Century Gothic'), local('AppleGothic'), sans-serif;
+        }
+        .font-century {
+          font-family: 'Century Gothic', 'AppleGothic', 'Futura', sans-serif;
+        }
+        .yellow-page {
+          background-color: #fef9c3;
+          background-image: 
+            linear-gradient(#eab308 1px, transparent 1px),
+            linear-gradient(90deg, #eab308 1px, transparent 1px);
+          background-size: 30px 30px;
+          background-blend-mode: overlay;
+        }
+        .notebook-margin {
+          border-left: 2px solid #ef4444;
+          margin-left: clamp(20px, 5vw, 60px);
+          padding-left: 24px;
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .yellow-page { background-image: none !important; background-color: white !important; }
+          .notebook-margin { border-left: 1px solid #ddd !important; margin-left: 0 !important; }
+        }
+      `}</style>
+      
+      <div className="w-full max-w-5xl yellow-page shadow-2xl min-h-screen flex flex-col border border-slate-400 relative font-century">
+        
+        <header className="pt-12 px-8 pb-6">
+          <div className="notebook-margin">
+            <div className="flex flex-col md:flex-row justify-between items-center md:items-start mb-8 text-center md:text-left">
+              <div className="mb-4 md:mb-0">
+                <h1 className="text-2xl font-black text-blue-900 tracking-tighter">LA SALLE - LA PAZ</h1>
+                <p className="text-xs text-blue-700 font-bold uppercase tracking-[0.25em]">Todo está conectado</p>
+              </div>
+              <div className="text-center md:text-right">
+                <h2 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Registro Pedagógico Digital</h2>
+                <p className="text-[11px] text-slate-500 font-bold">Gestión Escolar 2026</p>
+              </div>
+            </div>
+            
+            <div className="mb-10 text-center">
+              <h3 className="text-4xl md:text-5xl font-black text-red-600 tracking-tight uppercase italic drop-shadow-sm">evidencIA 2026</h3>
+            </div>
+
+            <div className="no-print bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-yellow-600/30 shadow-xl">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Estudiante</label>
+                    <input 
+                      value={formData.estudiante} 
+                      onChange={e => setFormData({...formData, estudiante: e.target.value})}
+                      className="w-full bg-transparent border-b-2 border-slate-400 px-2 py-2 focus:border-blue-800 outline-none transition-all text-xl font-bold text-slate-800 placeholder:font-normal placeholder:italic placeholder:text-slate-400"
+                      placeholder="Nombre del Alumno"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Área Curricular</label>
+                      <select 
+                        value={formData.area} 
+                        onChange={e => setFormData({...formData, area: e.target.value})}
+                        className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 outline-none text-sm font-bold shadow-sm focus:border-blue-500"
+                      >
+                        {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Estado de Alerta</label>
+                      <select 
+                        value={formData.alerta} 
+                        onChange={e => setFormData({...formData, alerta: e.target.value})}
+                        className={`w-full bg-white border-4 rounded-xl px-4 py-3 outline-none text-sm font-black shadow-sm transition-all ${ESTADOS[formData.alerta].border} ${ESTADOS[formData.alerta].color}`}
+                      >
+                        <option value="VERDE">Color: VERDE (Regular)</option>
+                        <option value="AMARILLO">Color: AMARILLO (Seguimiento)</option>
+                        <option value="ROJO">Color: ROJO (Crítico)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Observación Técnica</label>
+                  <textarea 
+                    value={formData.observacion} 
+                    onChange={e => setFormData({...formData, observation: e.target.value})}
+                    className="w-full h-[140px] bg-white border-2 border-slate-200 rounded-xl p-4 text-sm focus:ring-4 focus:ring-blue-800/10 focus:border-blue-500 outline-none shadow-inner resize-none font-medium"
+                    placeholder="Detalle la evidencia pedagógica observada..."
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button 
+                  onClick={handleSave} 
+                  disabled={loading}
+                  className="bg-blue-900 text-white px-10 py-4 rounded-xl shadow-lg hover:bg-blue-800 flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50 text-xs font-black tracking-widest"
+                >
+                  {loading ? <Loader2 className="animate-spin size-5" /> : <Save size={20} />}
+                  GENERAR PLAN DE INTERVENCIÓN
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-grow p-8 pt-4">
+          <div className="notebook-margin space-y-20 pb-20">
+            {logs.map((log) => (
+              <div key={log.id} className="relative group animate-in fade-in slide-in-from-bottom-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <span className="text-3xl font-black text-slate-800 underline decoration-red-500/30 underline-offset-8">{log.estudiante}</span>
+                    <div className={`flex items-center gap-2 text-xs px-4 py-1.5 rounded-full border-2 font-black uppercase tracking-widest shadow-sm ${ESTADOS[log.alerta || 'VERDE'].bg} ${ESTADOS[log.alerta || 'VERDE'].color} ${ESTADOS[log.alerta || 'VERDE'].border}`}>
+                      {ESTADOS[log.alerta || 'VERDE'].icon}
+                      {ESTADOS[log.alerta || 'VERDE'].label}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-5 text-slate-500 no-print">
+                    <span className="text-[11px] font-black bg-slate-800 text-white px-3 py-1 rounded-md uppercase">
+                      {log.fecha?.toDate().toLocaleDateString('es-BO')}
+                    </span>
+                    <button 
+                      onClick={() => { if(window.confirm('Eliminar?')) deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'acompanamiento', log.id)) }}
+                      className="hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100 p-2"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-8">
+                  <p className="text-[11px] font-black text-blue-900 mb-3 flex items-center gap-2">
+                    <span className="w-8 h-[2px] bg-blue-900"></span>
+                    OBSERVACIÓN ({log.area})
+                  </p>
+                  <p className="text-lg text-slate-800 leading-relaxed bg-white/50 p-6 rounded-r-2xl border-l-8 border-slate-600 shadow-sm italic font-medium">
+                    "{log.observacion}"
+                  </p>
+                </div>
+
+                {log.planAccion && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-6 bg-white border-t-8 border-amber-500 rounded-b-2xl shadow-md">
+                        <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <Lightbulb size={14} /> Soluciones Sugeridas
+                        </h4>
+                        <div className="text-sm text-slate-700 font-bold whitespace-pre-line leading-relaxed">
+                          {log.planAccion.soluciones}
+                        </div>
+                      </div>
+                      <div className="p-6 bg-white border-t-8 border-blue-600 rounded-b-2xl shadow-md">
+                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <ListChecks size={14} /> Plan de Acción por Pasos
+                        </h4>
+                        <div className="text-sm text-slate-700 font-bold whitespace-pre-line leading-relaxed">
+                          {log.planAccion.plan_pasos}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl flex items-start gap-4">
+                      <div className="bg-emerald-600 p-2 rounded-lg text-white shrink-0">
+                        <Heart size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tighter">Compromiso de Familia</p>
+                        <p className="text-xs text-emerald-900 font-bold italic">{log.planAccion.mensaje_familia}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-16 border-b-2 border-yellow-800/10 w-full"></div>
+              </div>
+            ))}
+          </div>
+        </main>
+
+        <footer className="p-10 mt-auto no-print border-t-2 border-yellow-800/10">
+          <div className="notebook-margin flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="text-center md:text-left">
+              <p className="text-[11px] font-black text-slate-600 uppercase mb-1">
+                © 2026 Colegio La Salle La Paz
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Inteligencia Pedagógica</p>
+            </div>
+            <button 
+              onClick={() => window.print()}
+              className="bg-blue-900 text-white px-8 py-3 rounded-xl hover:bg-blue-800 transition-all text-xs font-black shadow-xl flex items-center gap-3 active:scale-95"
+            >
+              <Printer size={18} /> GENERAR REPORTE PDF
+            </button>
+          </div>
+        </footer>
+
+      </div>
+    </div>
+  );
+}
