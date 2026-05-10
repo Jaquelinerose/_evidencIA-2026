@@ -4,4 +4,4 @@ Repositorio para la gestión del Registro Pedagógico Digital - Colegio La Salle
 
 ## Clonar proyecto
 ```bash
-git clone [https://github.com/Jaquelinerosa/_evidenciaIA-2026.git](https://github.com/Jaquelinerosa/_evidenciaIA-2026.git)
+git clone [https://github.com/Jaquelinerosa/_evidenciaIA-2026.git](https://github.com/Jaquelinerose/_evidenciaIA-2026.git)
