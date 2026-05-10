@@ -1,13 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>_evidenciaIA-2026 | La Salle</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body>
+    <style>
+        .yellow-page { background-color: #fef9c3; background-image: linear-gradient(#eab308 1px, transparent 1px), linear-gradient(90deg, #eab308 1px, transparent 1px); background-size: 30px 30px; }
+        .notebook-margin { border-left: 2px solid #ef4444; margin-left: 40px; padding-left: 24px; }
+    </style>
+</head>
+<body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function App() {
+            const [estudiante, setEstudiante] = useState('');
+            const [obs, setObs] = useState('');
+
+            return (
+                <div className="min-h-screen bg-slate-300 p-8 flex justify-center">
+                    <div className="w-full max-w-4xl yellow-page shadow-2xl min-h-[600px] border border-slate-400 p-10">
+                        <div className="notebook-margin">
+                            <h1 className="text-3xl font-black text-blue-900 uppercase">La Salle - La Paz</h1>
+                            <h2 className="text-5xl font-black text-red-600 italic my-4">evidencIA 2026</h2>
+                            
+                            <div className="mt-10 space-y-6">
+                                <input 
+                                    className="w-full bg-transparent border-b-2 border-slate-400 p-2 text-xl outline-none font-bold"
+                                    placeholder="Nombre del Estudiante"
+                                    value={estudiante}
+                                    onChange={(e) => setEstudiante(e.target.value)}
+                                />
+                                <textarea 
+                                    className="w-full bg-white/50 border-2 border-slate-300 rounded-xl p-4 h-40 outline-none"
+                                    placeholder="Escribe la observación aquí..."
+                                    value={obs}
+                                    onChange={(e) => setObs(e.target.value)}
+                                />
+                                <button className="bg-blue-900 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:bg-blue-800 transition-all">
+                                    GUARDAR EVIDENCIA
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
 </html>
